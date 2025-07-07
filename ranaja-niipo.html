@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nhật ký công việc</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 20px auto; padding: 10px; }
+    h1 { text-align: center; }
+    label { display: block; margin-top: 10px; }
+    input, select { width: 100%; padding: 8px; margin-top: 5px; }
+    button { margin-top: 10px; padding: 10px 15px; cursor: pointer; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    th { background-color: #f0f0f0; }
+  </style>
+</head>
+<body>
+  <h1>Nhật ký công việc</h1>
+  <form id="logForm">
+    <label>Dự án:
+      <input type="text" id="project" required>
+    </label>
+    <label>Ngày:
+      <input type="date" id="date" required>
+    </label>
+    <label>Giờ bắt đầu:
+      <input type="time" id="start" required>
+    </label>
+    <label>Giờ kết thúc:
+      <input type="time" id="end" required>
+    </label>
+    <button type="submit">Thêm nhật ký</button>
+  </form>
+
+  <button onclick="exportExcel()">📤 Xuất Excel</button>
+
+  <h2>Danh sách công việc</h2>
+  <table id="logTable">
+    <thead>
+      <tr>
+        <th>Dự án</th>
+        <th>Ngày</th>
+        <th>Bắt đầu</th>
+        <th>Kết thúc</th>
+        <th>Số giờ</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>Tổng số giờ theo dự án</h2>
+  <ul id="summary"></ul>
+
+  <script>
+    const form = document.getElementById('logForm');
+    const tableBody = document.querySelector('#logTable tbody');
+    const summary = document.getElementById('summary');
+
+    const logs = JSON.parse(localStorage.getItem('logs') || '[]');
+
+    function calcHours(start, end) {
+      const [h1, m1] = start.split(':').map(Number);
+      const [h2, m2] = end.split(':').map(Number);
+      return ((h2 * 60 + m2) - (h1 * 60 + m1)) / 60;
+    }
+
+    function renderLogs() {
+      tableBody.innerHTML = '';
+      const projectTotals = {};
+
+      logs.forEach(log => {
+        const row = document.createElement('tr');
+        const hours = calcHours(log.start, log.end);
+        row.innerHTML = `
+          <td>${log.project}</td>
+          <td>${log.date}</td>
+          <td>${log.start}</td>
+          <td>${log.end}</td>
+          <td>${hours.toFixed(2)}</td>
+        `;
+        tableBody.appendChild(row);
+
+        const key = log.project;
+        if (!projectTotals[key]) projectTotals[key] = 0;
+        projectTotals[key] += hours;
+      });
+
+      summary.innerHTML = '';
+      for (const [project, total] of Object.entries(projectTotals)) {
+        const li = document.createElement('li');
+        li.textContent = `${project}: ${total.toFixed(2)} giờ`;
+        summary.appendChild(li);
+      }
+    }
+
+    function exportExcel() {
+      const data = logs.map(log => ({
+        'Dự án': log.project,
+        'Ngày': log.date,
+        'Bắt đầu': log.start,
+        'Kết thúc': log.end,
+        'Số giờ': calcHours(log.start, log.end).toFixed(2)
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(data);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'NhatKy');
+      XLSX.writeFile(workbook, 'nhat_ky_cong_viec.xlsx');
+    }
+
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const log = {
+        project: document.getElementById('project').value,
+        date: document.getElementById('date').value,
+        start: document.getElementById('start').value,
+        end: document.getElementById('end').value,
+      };
+      logs.push(log);
+      localStorage.setItem('logs', JSON.stringify(logs));
+      form.reset();
+      renderLogs();
+    });
+
+    renderLogs();
+  </script>
+</body>
+</html>

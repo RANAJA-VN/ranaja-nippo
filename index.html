@@ -9,7 +9,8 @@
     body { font-family: sans-serif; max-width: 800px; margin: 20px auto; padding: 10px; }
     h1 { text-align: center; }
     label { display: block; margin-top: 10px; }
-    input, select { width: 100%; padding: 8px; margin-top: 5px; }
+    input, select, textarea { width: 100%; padding: 8px; margin-top: 5px; }
+    textarea { resize: vertical; }
     button { margin-top: 10px; padding: 10px 15px; cursor: pointer; }
     table { width: 100%; border-collapse: collapse; margin-top: 20px; }
     th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
@@ -34,6 +35,9 @@
     <label>Giờ kết thúc:
       <input type="time" id="end" required>
     </label>
+    <label>Nội dung công việc:
+      <textarea id="taskDetail" rows="3" required></textarea>
+    </label>
     <button type="submit">Thêm nhật ký</button>
   </form>
 
@@ -53,6 +57,7 @@
         <th>Bắt đầu</th>
         <th>Kết thúc</th>
         <th>Số giờ</th>
+        <th>Nội dung công việc</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -99,15 +104,14 @@
           <td>${log.start}</td>
           <td>${log.end}</td>
           <td>${hours.toFixed(2)}</td>
+          <td>${log.taskDetail}</td>
         `;
         tableBody.appendChild(row);
 
-        // Tổng giờ theo dự án
         const projKey = log.project;
         if (!projectTotals[projKey]) projectTotals[projKey] = 0;
         projectTotals[projKey] += hours;
 
-        // Tổng giờ theo nhân viên
         const empKey = log.employee;
         if (!employeeTotals[empKey]) employeeTotals[empKey] = 0;
         employeeTotals[empKey] += hours;
@@ -140,7 +144,8 @@
         'Ngày': log.date,
         'Bắt đầu': log.start,
         'Kết thúc': log.end,
-        'Số giờ': calcHours(log.start, log.end).toFixed(2)
+        'Số giờ': calcHours(log.start, log.end).toFixed(2),
+        'Nội dung công việc': log.taskDetail
       }));
 
       const worksheet = XLSX.utils.json_to_sheet(data);
@@ -157,6 +162,7 @@
         date: document.getElementById('date').value,
         start: document.getElementById('start').value,
         end: document.getElementById('end').value,
+        taskDetail: document.getElementById('taskDetail').value
       };
       logs.push(log);
       localStorage.setItem('logs', JSON.stringify(logs));

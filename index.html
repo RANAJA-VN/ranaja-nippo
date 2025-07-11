@@ -44,6 +44,24 @@
   <label>Lọc theo nhân viên:
     <input type="text" id="filterEmployee" placeholder="Nhập tên nhân viên để lọc">
   </label>
+  <label>Lọc theo dự án:
+    <input type="text" id="filterProject" placeholder="Nhập tên dự án để lọc">
+  </label>
+  <label>Lọc từ ngày:
+    <input type="date" id="filterFrom">
+  </label>
+  <label>Lọc đến ngày:
+    <input type="date" id="filterTo">
+  </label>
+  <label>Lọc theo giờ bắt đầu:
+    <input type="time" id="filterStart">
+  </label>
+  <label>Lọc theo giờ kết thúc:
+    <input type="time" id="filterEnd">
+  </label>
+  <label>Lọc theo nội dung công việc:
+    <input type="text" id="filterTask" placeholder="Từ khóa nội dung công việc">
+  </label>
 
   <button onclick="exportExcel()">📤 Xuất Excel</button>
 
@@ -75,8 +93,26 @@
     const summary = document.getElementById('summary');
     const employeeSummary = document.getElementById('employeeSummary');
     const filterInput = document.getElementById('filterEmployee');
+    const filterProject = document.getElementById('filterProject');
+    const filterFrom = document.getElementById('filterFrom');
+    const filterTo = document.getElementById('filterTo');
+    const filterStart = document.getElementById('filterStart');
+    const filterEnd = document.getElementById('filterEnd');
+    const filterTask = document.getElementById('filterTask');
 
-    const logs = JSON.parse(localStorage.getItem('logs') || '[]');
+    const endpoint = 'https://script.google.com/macros/s/AKfycbzOX5NJ1cDJhsO15PVqK65b-_heLXQxmEJdU5wX2MT-g4csoMaLRqnzoHnJIW575n1jkA/exec';
+
+    let logs = [];
+
+    async function fetchLogs() {
+      try {
+        const res = await fetch(endpoint);
+        logs = await res.json();
+        renderLogs();
+      } catch (err) {
+        alert('Không thể tải dữ liệu từ Google Sheet');
+      }
+    }
 
     function calcHours(start, end) {
       const [h1, m1] = start.split(':').map(Number);
@@ -90,11 +126,23 @@
       const employeeTotals = {};
 
       const filterName = filterInput.value.trim().toLowerCase();
+      const projectName = filterProject.value.trim().toLowerCase();
+      const fromDate = filterFrom.value;
+      const toDate = filterTo.value;
+      const startTime = filterStart.value;
+      const endTime = filterEnd.value;
+      const taskKeyword = filterTask.value.trim().toLowerCase();
 
       logs.forEach(log => {
         const hours = calcHours(log.start, log.end);
 
         if (filterName && !log.employee.toLowerCase().includes(filterName)) return;
+        if (projectName && !log.project.toLowerCase().includes(projectName)) return;
+        if (fromDate && log.date < fromDate) return;
+        if (toDate && log.date > toDate) return;
+        if (startTime && log.start < startTime) return;
+        if (endTime && log.end > endTime) return;
+        if (taskKeyword && !log.taskDetail.toLowerCase().includes(taskKeyword)) return;
 
         const row = document.createElement('tr');
         row.innerHTML = `
@@ -108,13 +156,8 @@
         `;
         tableBody.appendChild(row);
 
-        const projKey = log.project;
-        if (!projectTotals[projKey]) projectTotals[projKey] = 0;
-        projectTotals[projKey] += hours;
-
-        const empKey = log.employee;
-        if (!employeeTotals[empKey]) employeeTotals[empKey] = 0;
-        employeeTotals[empKey] += hours;
+        projectTotals[log.project] = (projectTotals[log.project] || 0) + hours;
+        employeeTotals[log.employee] = (employeeTotals[log.employee] || 0) + hours;
       });
 
       summary.innerHTML = '';
@@ -132,12 +175,24 @@
       }
     }
 
-    function exportExcel() {
+    async function exportExcel() {
       const filterName = filterInput.value.trim().toLowerCase();
+      const projectName = filterProject.value.trim().toLowerCase();
+      const fromDate = filterFrom.value;
+      const toDate = filterTo.value;
+      const startTime = filterStart.value;
+      const endTime = filterEnd.value;
+      const taskKeyword = filterTask.value.trim().toLowerCase();
 
       const data = logs.filter(log => {
-        if (!filterName) return true;
-        return log.employee.toLowerCase().includes(filterName);
+        if (filterName && !log.employee.toLowerCase().includes(filterName)) return false;
+        if (projectName && !log.project.toLowerCase().includes(projectName)) return false;
+        if (fromDate && log.date < fromDate) return false;
+        if (toDate && log.date > toDate) return false;
+        if (startTime && log.start < startTime) return false;
+        if (endTime && log.end > endTime) return false;
+        if (taskKeyword && !log.taskDetail.toLowerCase().includes(taskKeyword)) return false;
+        return true;
       }).map(log => ({
         'Nhân viên': log.employee,
         'Dự án': log.project,
@@ -154,7 +209,7 @@
       XLSX.writeFile(workbook, 'nhat_ky_cong_viec.xlsx');
     }
 
-    form.addEventListener('submit', e => {
+    form.addEventListener('submit', async e => {
       e.preventDefault();
       const log = {
         employee: document.getElementById('employee').value,
@@ -164,15 +219,26 @@
         end: document.getElementById('end').value,
         taskDetail: document.getElementById('taskDetail').value
       };
-      logs.push(log);
-      localStorage.setItem('logs', JSON.stringify(logs));
-      form.reset();
-      renderLogs();
+
+      try {
+        await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(log)
+        });
+        await fetchLogs();
+        form.reset();
+      } catch (err) {
+        alert('Lỗi khi gửi dữ liệu lên Google Sheet');
+      }
     });
 
-    filterInput.addEventListener('input', renderLogs);
+    [filterInput, filterProject, filterFrom, filterTo, filterStart, filterEnd, filterTask].forEach(input => {
+      input.addEventListener('input', renderLogs);
+      input.addEventListener('change', renderLogs);
+    });
 
-    renderLogs();
+    fetchLogs();
   </script>
 </body>
 </html>
